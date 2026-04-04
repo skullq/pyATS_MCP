@@ -1,0 +1,123 @@
+devices:
+  r1:
+    alias: r1
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.11
+        port: 2001
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r2:
+    alias: r2
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.12
+        port: 2002
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r3:
+    alias: r3
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.13
+        port: 2003
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r4:
+    alias: r4
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.14
+        port: 2004
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r5:
+    alias: r5
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.15
+        port: 2005
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r6:
+    alias: r6
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.16
+        port: 2006
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r7:
+    alias: r7
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.17
+        port: 2007
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+  r8:
+    alias: r8
+    type: router
+    os: iosxe
+    connections:
+      cli:
+        protocol: ssh
+        ip: 192.168.100.18
+        port: 2008
+        arguments:
+          connection_timeout: 60
+    credentials:
+      default:
+        username: admin
+        password: admin
+testbed:
+  name: dynamic_chat_testbed

@@ -1,0 +1,6 @@
+pyats[full]
+mcp
+pydantic
+python-dotenv
+fastmcp
+PyYAML
