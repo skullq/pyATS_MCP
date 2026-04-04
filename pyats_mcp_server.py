@@ -1004,6 +1004,7 @@ async def pyats_add_l2vni(
     l2vni: int,
     l2_vlan: int,
     l2_evi: int,
+    vrf_name: str,
     peer_ip: str = "",
     anycast_gw_ip: str = "",
     anycast_gw_mask: str = "255.255.255.0",
@@ -1037,6 +1038,7 @@ async def pyats_add_l2vni(
         l2vni:            Layer-2 VNI ID (e.g., 10000)
         l2_vlan:          VLAN ID for this L2VNI (e.g., 10)
         l2_evi:           EVPN Instance ID for this VLAN (e.g., 101)
+        vrf_name:         Tenant VRF name for the Anycast Gateway (Required for IRB)
         peer_ip:          (Optional) Remote VTEP IP. Unused if BGP discovery is active.
         anycast_gw_ip:    (Optional) Anycast gateway IP
         anycast_gw_mask:  Subnet mask for the anycast gateway
@@ -1051,10 +1053,12 @@ async def pyats_add_l2vni(
         if anycast_gw_ip:
             svi_ip_line = f" ip address {anycast_gw_ip} {anycast_gw_mask}"
             svi_mac_line = f" mac-address {anycast_gw_mac}\n" if anycast_gw_mac else ""
+            vrf_line = f"  vrf forwarding {vrf_name}\n"
             evi_gw_line = "  default-gateway advertise\n" if not anycast_gw_mac else ""
         else:
             svi_ip_line = " no ip address"
             svi_mac_line = ""
+            vrf_line = ""
             evi_gw_line = ""
 
         # Build EVI configuration lines
@@ -1091,7 +1095,7 @@ vlan configuration {l2_vlan}
 
 interface Vlan{l2_vlan}
   no shutdown
-{svi_mac_line}{svi_ip_line}
+{vrf_line}{svi_mac_line}{svi_ip_line}
 
 interface nve 1
   member vni {l2vni}
