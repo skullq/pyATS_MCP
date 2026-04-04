@@ -1001,6 +1001,7 @@ router bgp {asn}
 @mcp.tool()
 async def pyats_add_l2vni(
     device_name: str,
+    vrf_name: str,
     l2vni: int,
     l2_vlan: int,
     l2_evi: int,
@@ -1034,6 +1035,7 @@ async def pyats_add_l2vni(
 
     Args:
         device_name:      Name of the device in the testbed
+        vrf_name:         Tenant VRF name for the SVI
         l2vni:            Layer-2 VNI ID (e.g., 10000)
         l2_vlan:          VLAN ID for this L2VNI (e.g., 10)
         l2_evi:           EVPN Instance ID for this VLAN (e.g., 101)
@@ -1048,6 +1050,7 @@ async def pyats_add_l2vni(
         source_loopback:  Loopback interface used for EVPN router-id (default: Loopback0)
     """
     try:
+        svi_vrf_line = f"  vrf forwarding {vrf_name}\n"
         if anycast_gw_ip:
             svi_ip_line = f" ip address {anycast_gw_ip} {anycast_gw_mask}"
             svi_mac_line = f" mac-address {anycast_gw_mac}\n" if anycast_gw_mac else ""
@@ -1091,7 +1094,7 @@ vlan configuration {l2_vlan}
 
 interface Vlan{l2_vlan}
   no shutdown
-{svi_mac_line}{svi_ip_line}
+{svi_vrf_line}{svi_mac_line}{svi_ip_line}
 
 interface nve 1
   member vni {l2vni}
