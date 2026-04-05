@@ -1,7 +1,0 @@
-pyats[full]==25.2.0
-mcp
-pydantic
-python-dotenv
-fastmcp
-PyYAML
-httpx
