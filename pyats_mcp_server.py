@@ -921,6 +921,10 @@ async def pyats_add_l3vni(
     vrf_name: str,
     l3vni: int,
     l3_vlan: int,
+    user_vlan: int,
+    anycast_gw_ip: str,
+    anycast_gw_mask: str = "255.255.255.0",
+    anycast_gw_mac: str = "",
     peer_ip: str = "",
     asn: int = 65000,
     role: str = "LF",
@@ -928,25 +932,24 @@ async def pyats_add_l3vni(
     vrf_rt: str = ""
 ) -> str:
     """
-    [Day-2] Add a Layer-3 VNI (L3VNI) to an existing EVPN fabric on Modern IOS-XE.
-    Enables inter-subnet routing (Type-5 IP Prefix routes) for a tenant VRF.
+    [Day-2] Add a Layer-3 VNI (L3VNI) and Anycast Gateway to an existing EVPN fabric.
+    Enables inter-subnet routing (Type-5) and user-facing gateway (Type-2 proxy) for a tenant.
 
     L3VNI is directly mapped to the VRF, so a separate L2VPN EVI instance configuration is not required.
-
-    Roles & Stitching:
-    If the role is BL (Border Leaf) or BGW (Border Gateway), route-targets 
-    will include the 'stitching' keyword. Note: Spine (SP) can also act as BL/BGW.
 
     Args:
         device_name:  Name of the device in the testbed
         vrf_name:     VRF name for this tenant (e.g., 'VRF_TENANT_A')
         l3vni:        Layer-3 VNI ID (e.g., 20000)
-        l3_vlan:      VLAN ID associated with the L3VNI (e.g., 20)
-        peer_ip:      Remote VTEP IP — Unused in L3VNI config, kept for API compatibility.
+        l3_vlan:      VLAN ID associated with the L3VNI (Transit VLAN, e.g., 20)
+        user_vlan:    Tenant VLAN ID for the Anycast Gateway (User-facing VLAN)
+        anycast_gw_ip: Tenant Anycast Gateway IP
+        anycast_gw_mask: Subnet mask for Anycast Gateway (default: 255.255.255.0)
+        anycast_gw_mac: (Optional) Shared Anycast Gateway MAC
         asn:          BGP AS Number (Required for RT stitching calculation)
         role:         Device role: LF, SP, BL, BGW (default: LF)
-        vrf_rd:       (Optional) Explicit RD for VRF (e.g., '1:100'). Overrides auto-RD.
-        vrf_rt:       (Optional) Explicit RT for VRF (e.g., '65000:20000'). Overrides auto-RT.
+        vrf_rd:       Explicit RD for VRF (e.g., '1:100').
+        vrf_rt:       Explicit RT for VRF (e.g., '65000:20000').
     """
     try:
         # Build VRF RD/RT Override lines
@@ -966,6 +969,20 @@ async def pyats_add_l3vni(
             rt_val = f"{asn}:{l3vni}"
             stitching_config = f"  route-target export {rt_val} stitching\n  route-target import {rt_val} stitching\n"
 
+        # Tenant Anycast Gateway configuration
+        anycast_gw_config = ""
+        if user_vlan and anycast_gw_ip:
+            anycast_gw_config = f"""
+interface Vlan{user_vlan}
+  vrf forwarding {vrf_name}
+  ip address {anycast_gw_ip} {anycast_gw_mask}
+"""
+            if anycast_gw_mac:
+                anycast_gw_config += f"  mac-address {anycast_gw_mac}\n"
+            else:
+                anycast_gw_config += "  default-gateway advertise\n"
+            anycast_gw_config += "  no shutdown\n"
+
         config = f"""
 vrf definition {vrf_name}
   vnid {l3vni}
@@ -981,6 +998,7 @@ interface Vlan{l3_vlan}
   ip unnumbered Loopback0
   no autostate
   no shutdown
+{anycast_gw_config}
 
 interface nve 1
   member vni {l3vni} vrf {vrf_name}
@@ -1004,11 +1022,6 @@ async def pyats_add_l2vni(
     l2vni: int,
     l2_vlan: int,
     l2_evi: int,
-    vrf_name: str,
-    peer_ip: str = "",
-    anycast_gw_ip: str = "",
-    anycast_gw_mask: str = "255.255.255.0",
-    anycast_gw_mac: str = "",
     evi_rd: str = "",
     evi_rt: str = "",
     role: str = "LF",
@@ -1017,8 +1030,8 @@ async def pyats_add_l2vni(
 ) -> str:
     """
     [CRITICAL OPERATIONAL GUIDELINE]
-    1. MAINTAIN AUTO: Always prioritize 'RD/RT Auto' configurations. Do NOT prematurely 
-       switch to manual RD/RT just because a ping fails.
+    1. MANUAL RD/RT: Explicitly provide RD/RT values for all VNIs. Do NOT rely on 
+       auto-derivation to ensure consistency across different OS versions.
     2. CONTROL PLANE FIRST: Before testing with 'ping', you MUST continuously verify that 
        MAC addresses are being learned and advertised in the Control Plane (Type-2 routes).
        Use: 'show l2vpn evpn mac ip' to check for MAC/IP reachability.
@@ -1026,11 +1039,9 @@ async def pyats_add_l2vni(
        Control Plane convergence is the definitive proof of fabric health.
 
     Sets up:
-    - Global 'vrf rd-auto' and 'l2vpn evpn' (RT auto vni)
     - Interface NVE 1 base (source-interface, host-reachability protocol bgp)
     - L2VPN EVPN Instance (EVI) for L2VNI
     - VLAN-to-VNI mapping (member evpn-instance)
-    - L2VNI SVI: optional anycast gateway IP/MAC
     - NVE 1: member vni <l2vni> with ingress-replication discovery
 
     Args:
@@ -1038,47 +1049,24 @@ async def pyats_add_l2vni(
         l2vni:            Layer-2 VNI ID (e.g., 10000)
         l2_vlan:          VLAN ID for this L2VNI (e.g., 10)
         l2_evi:           EVPN Instance ID for this VLAN (e.g., 101)
-        vrf_name:         Tenant VRF name for the Anycast Gateway (Required for IRB)
-        peer_ip:          (Optional) Remote VTEP IP. Unused if BGP discovery is active.
-        anycast_gw_ip:    (Optional) Anycast gateway IP
-        anycast_gw_mask:  Subnet mask for the anycast gateway
-        anycast_gw_mac:   (Optional) Shared gateway MAC
-        evi_rd:           (Optional) Explicit RD for EVI. Overrides auto-RD.
-        evi_rt:           (Optional) Explicit RT for EVI. Overrides auto-RT.
-        role:             Device role: LF, SP, BL, BGW (default: LF)
+        evi_rd:           Explicit RD for EVI.
+        evi_rt:           Explicit RT for EVI.
         replication_type: BUM replication method: 'ingress' or 'static' (default: ingress)
         source_loopback:  Loopback interface used for EVPN router-id (default: Loopback0)
     """
     try:
-        if anycast_gw_ip:
-            svi_ip_line = f" ip address {anycast_gw_ip} {anycast_gw_mask}"
-            svi_mac_line = f" mac-address {anycast_gw_mac}\n" if anycast_gw_mac else ""
-            vrf_line = f"  vrf forwarding {vrf_name}\n"
-            evi_gw_line = "  default-gateway advertise\n" if not anycast_gw_mac else ""
-        else:
-            svi_ip_line = " no ip address"
-            svi_mac_line = ""
-            vrf_line = ""
-            evi_gw_line = ""
-
         # Build EVI configuration lines
-        # On Modern IOS-XE with global 'route-target auto vni', the instance config is minimal
         evi_config_lines = ""
         if evi_rd:
             evi_config_lines += f"  rd {evi_rd}\n"
         
-        # If user explicitly provides RT, we add it, otherwise we rely on global auto
-        if evi_rt and evi_rt != "auto":
+        if evi_rt:
             evi_config_lines += f"  route-target export {evi_rt}\n"
             evi_config_lines += f"  route-target import {evi_rt}\n"
 
         config = f"""
-vrf rd-auto
-!
 l2vpn evpn
   replication-type {replication_type}
-  router-id {source_loopback}
-  route-target auto vni
 !
 interface nve 1
   no ip address
@@ -1088,14 +1076,10 @@ interface nve 1
 !
 l2vpn evpn instance {l2_evi} vlan-based
   encapsulation vxlan
-{evi_config_lines}{evi_gw_line}
+{evi_config_lines}
 vlan {l2_vlan}
 vlan configuration {l2_vlan}
   member evpn-instance {l2_evi} vni {l2vni}
-
-interface Vlan{l2_vlan}
-  no shutdown
-{vrf_line}{svi_mac_line}{svi_ip_line}
 
 interface nve 1
   member vni {l2vni}
